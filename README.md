@@ -41,7 +41,7 @@ Open **[http://127.0.0.1:5173/](http://127.0.0.1:5173/)** in your browser. If th
 
 Keep the terminal running while you use the app. Source changes refresh the preview automatically. Press **Ctrl+C** in the terminal to stop the server. To start it again later, return to the project directory and run `npm run dev`.
 
-No TMDB credential or Supabase account is needed for the browser-only demo. Google sign-in and cloud saving require the optional Supabase setup below. The hosting development identity is separate from your Oscar account.
+No TMDB credential or Supabase account is needed for the browser-only demo. Email sign-in and cloud saving require the optional Supabase setup below. The hosting development identity is separate from your Oscar account.
 
 ## Try the demo
 
@@ -77,9 +77,9 @@ Oscar will use TMDB's popular movies and full movie search instead of the demo c
 
 `.dev.vars` is ignored by Git. Keep the token there; do not put it in browser code, the README, or a public-prefixed environment variable. Local credentials do not configure the deployed site; configure its server-side secret separately through Sites environment settings.
 
-## Optional: Google accounts and cloud collections
+## Optional: Email accounts and cloud collections
 
-Follow [the Supabase and Google setup guide](supabase/SETUP.md) to create the database, configure Google OAuth, and connect Oscar. Sign-in is Google-only. Your account collection can be shared by localhost and the deployed app when both point to the same Supabase project. Browser-only collections remain available for guests and can be imported after signing in.
+Follow [the Supabase email setup guide](supabase/SETUP.md) to create the database, configure email authentication, and connect Oscar. Sign-in uses email and password, with email confirmation and password reset. Your account collection can be shared by localhost and the deployed app when both point to the same Supabase project. Browser-only collections remain available for guests and can be imported after signing in.
 
 Run `npm test` to check the database access policies locally without a Supabase project.
 
@@ -101,4 +101,4 @@ The local development workflow above is enough to try the MVP; you do not need t
 
 ## Current scope
 
-Included: search, a seen-films collection, removal, sorting, grid/list views, and JSON export. Google sign-in, per-account cloud storage, and browser collection import are implemented but require Supabase and Google configuration. Ratings and ranking are not implemented yet.
+Included: search, a seen-films collection, removal, sorting, grid/list views, and JSON export. Email sign-in, per-account cloud storage, and browser collection import are implemented but require Supabase email configuration. Ratings and ranking are not implemented yet.

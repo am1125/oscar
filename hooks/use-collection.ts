@@ -2,6 +2,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { createClient, type SupabaseClient, type User } from '@supabase/supabase-js';
 import { isSeenMovie, type Movie, type SeenMovie } from '@/lib/movies';
+import { submitEmailAuth, type EmailAuthMode } from '@/lib/email-auth';
 const KEY = 'oscar.seen.v1';
 type Row = Omit<SeenMovie, 'addedAt'> & { user_id: string; added_at: number };
 const toRow = (m: SeenMovie, userId: string): Row => ({id:m.id,title:m.title,release_date:m.release_date,poster_path:m.poster_path,overview:m.overview,added_at:m.addedAt,user_id:userId});
@@ -14,6 +15,7 @@ export function useCollection() {
  const [busy,setBusy] = useState(false);
  const [error,setError] = useState('');
  const [notice,setNotice] = useState('');
+ const [recovery,setRecovery] = useState(false);
  const client = useRef<SupabaseClient|null>(null);
  const currentUser = useRef<User|null>(null);
  const guestRef = useRef<SeenMovie[]>([]);
@@ -39,7 +41,9 @@ export function useCollection() {
   finally {if (generation.current===version) setReady(true);}
  },[]);
  useEffect(() => {
-  let disposed=false; let unsubscribe: (()=>void)|undefined;
+  let disposed=false;
+  try {setRecovery(sessionStorage.getItem('oscar.passwordRecovery')==='true');} catch {}
+  let unsubscribe: (()=>void)|undefined;
   try { const saved=JSON.parse(localStorage.getItem(KEY)||'[]');if(!Array.isArray(saved)||!saved.every(isSeenMovie)) throw new Error();guestRef.current=saved;setGuest(saved); }
   catch {guestError.current='Your browser collection could not be read. It has not been overwritten.';}
   async function init() {
@@ -51,16 +55,21 @@ export function useCollection() {
     if(!config.configured){await refresh(null);return;}
     const supabase=createClient(config.url,config.key,{auth:{flowType:'pkce',detectSessionInUrl:true,persistSession:true,autoRefreshToken:true}});
     client.current=supabase;
-    const {data:subscription}=supabase.auth.onAuthStateChange((_event,session)=>{
+    const {data:subscription}=supabase.auth.onAuthStateChange((event,session)=>{
+     if(event==='PASSWORD_RECOVERY'){setRecovery(true);try{sessionStorage.setItem('oscar.passwordRecovery','true');}catch{}}
+     if(event==='SIGNED_OUT'){setRecovery(false);try{sessionStorage.removeItem('oscar.passwordRecovery');}catch{}}
      // Avoid calling Supabase APIs while inside the auth callback's lock.
      setTimeout(()=>{if(!disposed) void refresh(session?.user||null);},0);
     });
     unsubscribe=()=>subscription.subscription.unsubscribe();
     const {data,error}=await supabase.auth.getSession();if(error)throw error;
-    if(!disposed)await refresh(data.session?.user||null);
+    if(!disposed){
+     if(!data.session){setRecovery(false);try{sessionStorage.removeItem('oscar.passwordRecovery');}catch{}}
+     await refresh(data.session?.user||null);
+    }
     const params=new URLSearchParams(window.location.search);
     const hashParams=new URLSearchParams(window.location.hash.slice(1));
-    if(params.has('error') || hashParams.has('error')){setNotice('Google sign-in was cancelled or could not finish. Please try again.');window.history.replaceState({},'',window.location.pathname);}
+    if(params.has('error') || hashParams.has('error')){setNotice('The email link is invalid or expired. Request a new confirmation or reset link.');window.history.replaceState({},'',window.location.pathname);}
    } catch {if(!disposed){setError('Could not initialize accounts. Retry before changing your collection.');setReady(true);}}
   }
   void init();
@@ -85,14 +94,17 @@ export function useCollection() {
   } catch {setNotice('Could not save that change. Please try again.');}
   finally {locked.current=false;setBusy(false);}
  }
- async function signIn() {
-  if(!client.current||locked.current)return;
-  setBusy(true);locked.current=true;setNotice('');
+ async function authenticate(mode: EmailAuthMode, email: string, password: string) {
+  if(!client.current) throw new Error('Accounts are awaiting Supabase setup.');
+  if(locked.current) throw new Error('Please wait for the current request to finish.');
+  locked.current=true;setBusy(true);
   try {
-   const {data,error}=await client.current.auth.signInWithOAuth({provider:'google',options:{redirectTo:window.location.origin+'/',skipBrowserRedirect:true}});
-   if(error||!data.url)throw error;
-   window.location.assign(data.url);
-  } catch {setNotice('Could not start Google sign-in. Please try again.');setBusy(false);locked.current=false;}
+   if(mode==='update' && (!recovery || !currentUser.current)) throw new Error('Open a valid password reset link first.');
+   const result=await submitEmailAuth(client.current,mode,email,password,window.location.origin);
+   if(mode==='update'){setRecovery(false);try{sessionStorage.removeItem('oscar.passwordRecovery');}catch{}}
+   if(result.close)setNotice(result.message);
+   return result;
+  } finally {locked.current=false;setBusy(false);}
  }
  async function signOut() {
   if(!client.current||locked.current)return;
@@ -115,5 +127,5 @@ export function useCollection() {
   }catch{setNotice('Import did not finish. Retry safely—existing account films will not be duplicated.');}
   finally{locked.current=false;setBusy(false);}
  }
- return {seen,user,ready,configured,busy,error,notice,toggle,signIn,signOut,importGuest,refresh:()=>window.location.reload(),importCount:guest.filter(m=>!seen.some(s=>s.id===m.id)).length};
+ return {seen,user,ready,configured,busy,error,notice,recovery,dismissRecovery:()=>{setRecovery(false);try{sessionStorage.removeItem('oscar.passwordRecovery');}catch{}},toggle,authenticate,signOut,importGuest,refresh:()=>window.location.reload(),importCount:guest.filter(m=>!seen.some(s=>s.id===m.id)).length};
 }

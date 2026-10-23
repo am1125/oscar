@@ -1,62 +1,62 @@
-# Connect Oscar to Supabase and Google
+# Connect Oscar to Supabase email accounts
 
-The code supports Google sign-in and per-user collections. Live sign-in needs the project configuration below. No email/password flow is used.
+Oscar supports email/password sign-up, sign-in, confirmation-email resend, password reset, and per-user movie collections. Google Cloud setup is not needed.
 
-## 1. Create a free Supabase project
+## 1. Create the database
 
-At https://supabase.com/dashboard, create a Free organization/project named Oscar, choose a nearby region, and save its database password privately. Wait for provisioning to finish.
+In your Supabase project's SQL Editor, run `supabase/migrations/202610230001_seen_movies.sql` once. If you already applied it, do not run it again. This creates the movie table and policies restricting each account to its own records.
 
-Open the project's SQL Editor and run the contents of `supabase/migrations/202610230001_seen_movies.sql` once. This creates the collection table and policies that restrict reads, inserts, and deletes to the signed-in owner. The app uses the public publishable key with each user's session; it never uses a service-role key.
+## 2. Enable email accounts
 
-## 2. Configure Google sign-in
+In Authentication → Sign In / Providers → Email, enable email sign-up and keep **Confirm email** enabled. Set the minimum password length to at least 8 characters. The app also enforces 8 characters for new passwords.
 
-In https://console.cloud.google.com/, create or select a project for Oscar. Open Google Auth Platform:
-
-1. Set up the consent screen/branding (Oscar, your support email, and your developer contact email).
-2. Choose the appropriate audience. For a personal Google account, use External. While the app is in Testing, add your own Google email and any testers under Test users.
-3. Request only `openid`, email, and basic profile scopes.
-4. Create an OAuth client of type **Web application**.
-5. Add your web origins: `http://localhost:5173` for local testing and `https://oscar-movie-journal.grey-sun-7710.chatgpt.site` for this hosted preview. Use the same origin consistently when testing.
-6. In Supabase, open Authentication → Sign In / Providers → Google. Copy the project's callback URL into Google's **Authorized redirect URIs**. For a hosted Supabase project this is `https://YOUR_PROJECT_REF.supabase.co/auth/v1/callback`—use the actual value shown by Supabase even when Oscar runs on localhost.
-7. Copy Google's client ID and client secret into Supabase's Google provider settings and enable the provider. Store the secret only there, not in Oscar's source or browser configuration.
-
-In Supabase Authentication → URL Configuration:
+In Authentication → URL Configuration:
 
 - Set Site URL to `https://oscar-movie-journal.grey-sun-7710.chatgpt.site`.
-- Allow these exact redirect URLs: `http://localhost:5173/`, `http://127.0.0.1:5173/`, and `https://oscar-movie-journal.grey-sun-7710.chatgpt.site/`.
-- If you use another local port, add its exact URL too.
+- Add the following exact Redirect URLs:
+  - `http://localhost:5173/`
+  - `http://127.0.0.1:5173/`
+  - `https://oscar-movie-journal.grey-sun-7710.chatgpt.site/`
 
-Google redirects to Supabase's callback. Supabase then redirects to Oscar. These are two different URL settings. Oscar uses PKCE, so finish the login in the same browser that started it. If Google refuses an embedded browser, open Oscar in your regular Chrome or Safari browser.
+Confirmation and reset links return to Oscar's home page. The app uses PKCE: open email links in the same browser and on the same device where you requested them. An expired or already-used link needs to be requested again. The password recovery event opens the new-password form automatically.
 
-Official instructions: https://supabase.com/docs/guides/auth/social-sign-in/auth-google
+## 3. Email delivery for testing
 
-## 3. Configure Oscar locally
+Supabase's default email sender is limited to email addresses belonging to members of the project's organization, and currently allows only two emails per hour. Start testing with your own Supabase organization email. You may hit the rate limit when testing confirmation and reset back-to-back.
 
-Find your Supabase project URL and **publishable key** in the project's Connect dialog or API settings. The key starts with `sb_publishable_`. Add these to the ignored `.dev.vars` file in the repository root:
+For other testers or production, configure a custom SMTP sender in Supabase Authentication settings. Do not give testers organization-admin access merely to receive emails. Keep email confirmation enabled. SMTP credentials belong in Supabase, not in Oscar's browser code or Git.
+
+Official instructions:
+- https://supabase.com/docs/guides/auth/passwords
+- https://supabase.com/docs/guides/auth/auth-smtp
+
+## 4. Connect the local app
+
+Find the project URL and publishable key in the project's Connect dialog or API settings. Add them to `.dev.vars` alongside `package.json`:
 
 ```dotenv
 SUPABASE_URL=https://YOUR_PROJECT_REF.supabase.co
 SUPABASE_PUBLISHABLE_KEY=sb_publishable_YOUR_KEY
 ```
 
-Keep any existing `TMDB_READ_ACCESS_TOKEN` line in that file. Do not supply a Supabase secret/service-role key, database password, or Google secret. The public URL and publishable key are deliberately sent to the browser; access is enforced by the database policies and user session.
+Keep any existing `TMDB_READ_ACCESS_TOKEN` line. Restart `npm run dev` and open `http://localhost:5173/`.
 
-Restart `npm run dev`, open `http://localhost:5173/`, and click **Continue with Google**. Without configuration, Oscar explicitly shows that cloud accounts await setup and preserves browser-only demo behavior.
+Use the **publishable** key beginning `sb_publishable_`, never a service-role/secret key or database password. This key is public by design; signed-in user sessions and database policies control access. The `.dev.vars` file is ignored by Git.
 
-## 4. Configure the hosted app
+## 5. Connect the hosted app
 
-Set the same two variables in the Site's runtime environment settings, then redeploy. This lets localhost and the hosted app use the same Supabase account collection. Their guest collections remain separate.
+Set the same two variables in the Site's runtime environment settings and redeploy. Localhost and the hosted app can then share the same Supabase account collection. Their unsigned-in browser collections remain separate.
 
-The hosted preview is still owner-private through Sites. That hosting access gate is separate from Oscar's Google account. Google sign-in does not make the Site publicly accessible. Change hosting access only when you intend to invite other people.
+The hosted preview remains owner-private through Sites. Its hosting access gate is separate from the Oscar email account. Adding Supabase accounts does not make the hosted Site public.
 
-## 5. Verify with your account
+## 6. Test the flow
 
-- Sign in, mark a film as seen, and reload.
-- Sign out: account films should disappear from the current view, but remain saved in Supabase.
-- Sign back in: the account collection should return.
-- Sign in from a second browser or device: the same films should load.
-- If you already have browser films, use **Import browser films** after signing in. Import merges without replacing existing account records and retains the browser copy.
-- Test with a second Google account: it should have its own collection.
-- Export remains available under My films.
+1. Open **Sign in / Create account**, choose **Create an account**, and enter your email and password.
+2. Follow the confirmation email in the same browser. If needed, use **Resend confirmation email**.
+3. Sign in, add a film, and reload. The film should remain.
+4. Sign out and sign in again, or sign in on another device. Your collection should return.
+5. Use **Forgot password?**, follow the email link, and set a new password. Verify the new password works.
+6. If you have browser films, use **Import browser films** after signing in. Import merges without replacing existing account records and retains the original browser copy.
+7. With a second test account, verify its collection is separate.
 
-The migration has automated PostgreSQL policy tests (`npm test`). Actual Google login, redirect settings, and cloud persistence must also be verified against the configured project.
+Run `npm test` for local policy and email-auth request tests. Live email delivery, session callbacks, and cloud persistence also need verification against your configured project. Until configured, the app keeps browser-only demo mode and explains that accounts await setup.
