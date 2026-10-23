@@ -1,19 +1,98 @@
 # Oscar
 
-A mobile-friendly movie journal. Search, mark films as seen, browse or sort your collection, remove films, and export the collection as JSON.
+A mobile-friendly movie journal. Search for films, mark them as seen, and browse your collection.
 
-## Run
+## Run the MVP locally
 
-Requires Node 22.13+ and npm. Run `npm run install:ci`, then `npm run dev`. Build with `npm run build`.
+### 1. Install the prerequisites
 
-## Connect TMDB
+You need **Node.js 22.13 or newer**, **npm**, and **Git** installed on your computer. Check them in a terminal:
 
-Obtain an API Read Access Token from https://www.themoviedb.org/settings/api. Set the server-only secret `TMDB_READ_ACCESS_TOKEN` through Sites environment variables before redeploying. For local development, put it in an ignored `.dev.vars` file. Never use a public-prefixed environment variable or commit the token.
+```sh
+node --version
+npm --version
+git --version
+```
 
-With no credential, `/api/movies` explicitly reports demo mode and searches eight sample films. With a credential, it proxies TMDB's popular movies and paginated movie search. Errors are displayed instead of silently replacing live results with demo data.
+### 2. Clone the repository
 
-## Storage and scope
+```sh
+git clone https://github.com/am1125/oscar.git
+cd oscar
+```
 
-Collections use localStorage under `oscar.seen.v1`, keyed by TMDB movie IDs. They persist across reloads in the same browser and origin. No device sync, accounts, ratings, or ranking yet. Export is available in My films. Clearing browser data removes the collection. An unreadable collection is not overwritten.
+The repository root contains `package.json`; run the following commands from that directory.
 
-Next: account-backed storage shared across web and iOS, then pairwise ranking (choose which of two seen films you prefer). Retain TMDB IDs when migrating.
+### 3. Install dependencies
+
+```sh
+npm run install:ci
+```
+
+This installs the versions recorded in the lockfile. You only need to repeat this when dependencies change or you start from a fresh checkout.
+
+### 4. Start the local server
+
+```sh
+npm run dev
+```
+
+Open **[http://127.0.0.1:5173/](http://127.0.0.1:5173/)** in your browser. If the terminal prints a different Local URL, use that URL instead.
+
+Keep the terminal running while you use the app. Source changes refresh the preview automatically. Press **Ctrl+C** in the terminal to stop the server. To start it again later, return to the project directory and run `npm run dev`.
+
+No TMDB credential, database setup, or production sign-in is needed for the local demo. The development server supplies a mock sign-in identity.
+
+## Try the demo
+
+Without a TMDB credential, Oscar shows a clearly labeled **eight-film demo catalog**.
+
+1. Search for a demo title, such as **Interstellar**.
+2. Click **Mark as seen**.
+3. Open **My films** to view the collection.
+4. Reload the page to confirm it was saved.
+5. Click **Seen** to remove a film, or use the export button in My films to download the collection as JSON.
+
+Your collection is saved in this browser's local storage. It does not sync across devices, and clearing browser data removes it. Use the same address each time: `localhost` and `127.0.0.1` have separate browser storage, as do different ports. The hosted site also has its own collection.
+
+## Optional: connect the full TMDB catalog
+
+Once your TMDB API access is approved:
+
+1. Find your **API Read Access Token** in [TMDB API settings](https://www.themoviedb.org/settings/api).
+2. Create a file named `.dev.vars` in the project root, alongside `package.json`.
+3. Add this line, replacing the placeholder with your token:
+
+   ```dotenv
+   TMDB_READ_ACCESS_TOKEN=your_read_access_token_here
+   ```
+
+4. Stop the local server with **Ctrl+C**, then restart it:
+
+   ```sh
+   npm run dev
+   ```
+
+Oscar will use TMDB's popular movies and full movie search instead of the demo catalog. This needs an internet connection. If the credential is invalid or TMDB is unavailable, the app displays an error instead of silently switching to demo results.
+
+`.dev.vars` is ignored by Git. Keep the token there; do not put it in browser code, the README, or a public-prefixed environment variable. Local credentials do not configure the deployed site; configure its server-side secret separately through Sites environment settings.
+
+## Troubleshooting
+
+- **`node` or `npm` is not found:** install Node.js with npm, then reopen your terminal.
+- **The page cannot be reached:** check that `npm run dev` is still running and open the Local URL printed in that terminal.
+- **Port 5173 is already in use:** stop the other preview server or use the alternate URL printed by the dev server.
+- **Search only finds eight movies:** this is demo mode. Add the TMDB token as described above and restart the server.
+- **Your collection looks empty:** check that you are using the same browser, address, and port where you saved it.
+
+## Check the production build
+
+```sh
+npm run build
+```
+
+The local development workflow above is enough to try the MVP; you do not need to deploy it.
+
+## Current scope
+
+Included: search, a seen-films collection, removal, sorting, grid/list views, and JSON export. Accounts, device sync, ratings, and ranking are not implemented yet.
